@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRDO Missile Production Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0D12;
+    --panel:#12161D;
+    --panel-2:#171C25;
+    --grid-line:rgba(120,160,200,0.07);
+    --border:rgba(160,190,220,0.12);
+    --cyan:#4FD8E0;
+    --cyan-dim:#2C8C92;
+    --text:#E9EEF3;
+    --text-muted:#8A93A3;
+    --red:#FF5C5C;
+    --red-dim:rgba(255,92,92,0.15);
+    --yellow:#F2B705;
+    --yellow-dim:rgba(242,183,5,0.15);
+    --green:#3FD68C;
+    --green-dim:rgba(63,214,140,0.15);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{background:var(--bg);}
+  body{
+    font-family:'Inter',sans-serif;
+    color:var(--text);
+    min-height:100vh;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size:36px 36px;
+    background-attachment:fixed;
+    padding-bottom:60px;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .display{font-family:'Rajdhani',sans-serif;}
+
+  /* ===== Header ===== */
+  header{
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(18,22,29,0.95), rgba(18,22,29,0.65));
+    backdrop-filter:blur(6px);
+    padding:22px 32px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    align-items:center;
+    justify-content:space-between;
+    position:sticky;
+    top:0;
+    z-index:50;
+  }
+  .brand{display:flex;align-items:center;gap:14px;}
+  .brand-mark{
+    width:42px;height:42px;border-radius:8px;
+    background:linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:20px;color:#06141a;
+    flex-shrink:0;
+  }
+  .brand h1{
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:24px;letter-spacing:0.06em;
+    text-transform:uppercase;color:var(--text);
+  }
+  .brand p{font-size:13px;color:var(--text-muted);letter-spacing:0.04em;margin-top:2px;}
+
+  .header-stats{display:flex;gap:28px;flex-wrap:wrap;}
+  .hstat{text-align:right;}
+  .hstat .num{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;}
+  .hstat .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px;}
+
+  .legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+  .legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-muted);}
+  .dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+  .dot.red{background:var(--red);box-shadow:0 0 8px var(--red);}
+  .dot.yellow{background:var(--yellow);box-shadow:0 0 8px var(--yellow);}
+  .dot.green{background:var(--green);box-shadow:0 0 8px var(--green);}
+
+  main{max-width:1320px;margin:0 auto;padding:32px;}
+
+  .section-title{
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:18px;
+    text-transform:uppercase;letter-spacing:0.07em;color:var(--text);
+    margin-bottom:14px;display:flex;align-items:center;gap:10px;
+  }
+  .section-title::before{
+    content:'';width:4px;height:18px;background:var(--cyan);display:inline-block;border-radius:2px;
+  }
+  .section-sub{font-size:13px;color:var(--text-muted);margin-bottom:20px;margin-top:-10px;}
+
+  /* ===== Fleet grid ===== */
+  .fleet-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));
+    gap:16px;
+    margin-bottom:44px;
+  }
+  .missile-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:18px;
+    cursor:pointer;
+    transition:border-color .15s, transform .15s, box-shadow .15s;
+    position:relative;
+    overflow:hidden;
+  }
+  .missile-card:hover{
+    border-color:var(--cyan-dim);
+    transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.35);
+  }
+  .missile-card.active{border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan), 0 8px 24px rgba(0,0,0,0.4);}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+  .card-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:19px;letter-spacing:0.02em;}
+  .card-cat{font-size:11.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:3px;}
+  .status-pill{
+    font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;
+    padding:4px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:0.04em;
+    white-space:nowrap;
+  }
+  .status-pill.red{background:var(--red-dim);color:var(--red);}
+  .status-pill.yellow{background:var(--yellow-dim);color:var(--yellow);}
+  .status-pill.green{background:var(--green-dim);color:var(--green);}
+
+  .card-build{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;}
+  .card-build .num{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:34px;line-height:1;}
+  .card-build .unit{font-size:12.5px;color:var(--text-muted);}
+  .card-bottleneck{font-size:12px;color:var(--text-muted);}
+  .card-bottleneck b{color:var(--text);font-weight:600;}
+
+  /* ===== Detail view ===== */
+  #detail-wrap{display:none;}
+  .detail-grid{
+    display:grid;
+    grid-template-columns:1.1fr 1fr;
+    gap:24px;
+    align-items:start;
+  }
+  @media (max-width:900px){
+    .detail-grid{grid-template-columns:1fr;}
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px;
+    min-width:0;
+  }
+  #svg-mount{width:100%; overflow-x:auto;}
+  .detail-header{
+    display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:12px;
+  }
+  .detail-title{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:26px;}
+  .detail-cat{font-size:13px;color:var(--cyan);margin-top:3px;letter-spacing:0.03em;}
+  
+  .back-btn{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 14px;border-radius:8px;
+    cursor:pointer;letter-spacing:0.04em;
+  }
+  .back-btn:hover{border-color:var(--cyan-dim);}
+
+  .forge-btn{
+    background:linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+    border:none;color:#06141a;
+    font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;padding:8px 14px;border-radius:8px;
+    cursor:pointer;letter-spacing:0.04em;
+    transition:opacity .15s, transform .15s;
+  }
+  .forge-btn:hover{opacity:0.9;transform:translateY(-1px);}
+  .forge-btn:active{transform:translateY(0);}
+  .forge-btn:disabled{background:var(--panel-2);color:var(--text-muted);cursor:not-allowed;opacity:0.6;}
+
+  svg.diagram{width:100%;height:auto;display:block;}
+  .marker-dot{transition:r .15s;}
+  .marker-dot:hover{filter:brightness(1.3);}
+  .marker-group{cursor:pointer;}
+  .marker-group.selected .marker-dot{stroke:#fff;stroke-width:2;}
+  .label-text{font-family:'JetBrains Mono',monospace;font-weight:600;cursor:pointer;}
+  .label-num{font-family:'JetBrains Mono',monospace;font-weight:700;}
+  @keyframes pulse-red{
+    0%,100%{ opacity:1; }
+    50%{ opacity:0.4; }
+  }
+  .pulse{animation:pulse-red 1.4s ease-in-out infinite;}
+
+  /* Inspector */
+  .inspector-empty{color:var(--text-muted);font-size:13.5px;padding:30px 0;text-align:center;}
+  .insp-code{
+    display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;
+    background:var(--panel-2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;
+    color:var(--cyan);letter-spacing:0.05em;margin-bottom:8px;
+  }
+  .insp-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:21px;margin-bottom:14px;}
+  .insp-stockrow{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+  .insp-stocknum{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:40px;line-height:1;}
+  .insp-stockunit{font-size:13px;color:var(--text-muted);}
+  .insp-statustext{font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:16px;}
+  .gauge{height:10px;border-radius:6px;background:var(--panel-2);overflow:hidden;margin-bottom:18px;border:1px solid var(--border);}
+  .gauge-fill{height:100%;border-radius:6px;transition:width .2s;}
+  .insp-meta{display:flex;gap:24px;margin-bottom:20px;flex-wrap:wrap;}
+  .insp-meta div .v{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:16px;}
+  .insp-meta div .k{font-size:11.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;}
+
+  table.vendor-table{width:100%;border-collapse:collapse;font-size:14px;}
+  table.vendor-table th{
+    text-align:left;font-size:11.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;
+    padding:0 10px 8px 10px;border-bottom:1px solid var(--border);font-weight:600;
+  }
+  table.vendor-table td{padding:11px 10px;border-bottom:1px solid var(--border);}
+  table.vendor-table tr:last-child td{border-bottom:none;}
+  .vendor-name{font-weight:500;}
+  .lead-time{font-family:'JetBrains Mono',monospace;font-weight:600;}
+  .fastest-badge{
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;color:#06141a;
+    background:var(--cyan);padding:3px 8px;border-radius:20px;letter-spacing:0.04em;margin-left:8px;
+  }
+
+  /* Build summary */
+  .build-summary{
+    grid-column:1 / -1;
+    margin-top:20px;
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    gap:28px;
+    align-items:center;
+  }
+  @media (max-width:700px){
+    .build-summary{grid-template-columns:1fr;text-align:left;}
+  }
+  .bs-num{text-align:center;}
+  .bs-num .v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:48px;line-height:1;}
+  .bs-num .l{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;}
+  .bs-mid{font-size:14.5px;color:var(--text);line-height:1.6;}
+  .bs-mid b{color:var(--cyan);}
+  .bs-short{text-align:center;padding:12px 20px;background:var(--panel-2);border-radius:10px;border:1px solid var(--border);}
+  .bs-short .v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;}
+  .bs-short .l{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-top:3px;}
+
+  footer{text-align:center;color:var(--text-muted);font-size:12px;padding:30px 0 10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">MP</div>
+    <div>
+      <h1>DRDO Missile Production Control</h1>
+      <p>Parts inventory · vendor sourcing · fleet build capacity</p>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="hstat">
+      <div class="num mono" id="stat-models">—</div>
+      <div class="lbl">Models tracked</div>
+    </div>
+    <div class="hstat">
+      <div class="num mono" id="stat-target">100</div>
+      <div class="lbl">Target / model / mo</div>
+    </div>
+    <div class="hstat">
+      <div class="num mono" id="stat-critical" style="color:var(--red)">—</div>
+      <div class="lbl">Critical models</div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><span class="dot red"></span>&lt; 50 critical</div>
+    <div class="legend-item"><span class="dot yellow"></span>50–99 caution</div>
+    <div class="legend-item"><span class="dot green"></span>≥ 100 healthy</div>
+  </div>
+</header>
+
+<main>
+  <div class="section-title">Fleet overview</div>
+  <div class="section-sub">Select a model to inspect its parts, current stock and vendor lead times.</div>
+  <div class="fleet-grid" id="fleet-grid"></div>
+
+  <div id="detail-wrap">
+    <div class="section-title">Build inspector</div>
+    <div class="section-sub" id="detail-sub">Click any labeled part on the diagram to view stock and vendors.</div>
+    <div class="detail-grid">
+      <div class="panel">
+        <div class="detail-header">
+          <div>
+            <div class="detail-title" id="detail-title">—</div>
+            <div class="detail-cat" id="detail-cat">—</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="create-btn" class="forge-btn" onclick="forgeMissile()">CREATE MISSILE</button>
+            <button class="back-btn" onclick="closeDetail()">← BACK TO FLEET</button>
+          </div>
+        </div>
+        <div id="svg-mount"></div>
+      </div>
+
+      <div class="panel">
+        <div id="inspector-content">
+          <div class="inspector-empty">Select a part on the diagram to see stock level and vendor options.</div>
+        </div>
+      </div>
+
+      <div class="panel build-summary" id="build-summary"></div>
+    </div>
+  </div>
+</main>
+
+<footer>Program names are public DRDO designations shown for illustration. Stock levels, vendors and lead times are fictional demo data, not official or classified figures.</footer>
+
+<script>
+/* ---------- Part definitions (shared across all models) ---------- */
+const PARTS_META = [
+  { code:'G',   label:'Guidance Module',              short:'Guidance & Radio Control', req:1, mx:198, my:82,  side:'left',  lx:36,  ly:70  },
+  { code:'PL',  label:'Payload Bay',                   short:'Warhead / Instruments',    req:1, mx:244, my:112, side:'right', lx:404, ly:42  },
+  { code:'OS',  label:'Outer Skin / Airframe',          short:'Structural shell',         req:1, mx:172, my:235, side:'left',  lx:36,  ly:235 },
+  { code:'FT',  label:'Fuel Tanks',                     short:'×2 required per unit',     req:2, mx:220, my:300, side:'right', lx:404, ly:295 },
+  { code:'FP',  label:'Fuel Pumps',                     short:'×2 required per unit',     req:2, mx:220, my:400, side:'left',  lx:36,  ly:400 },
+  { code:'FC',  label:'Firing Chamber',                 short:'Combustion stage',         req:1, mx:220, my:472, side:'right', lx:404, ly:472 },
+  { code:'ICS', label:'Internal Control Surfaces',      short:'×2 required per unit',     req:2, mx:202, my:538, side:'left',  lx:36,  ly:560 },
+  { code:'ECS', label:'External Control Surfaces',      short:'×2 required per unit',     req:2, mx:288, my:588, side:'right', lx:404, ly:585 },
+  { code:'EX',  label:'Exhaust / Blast Nozzle',         short:'Thrust outlet',            req:1, mx:220, my:702, side:'left',  lx:36,  ly:705 },
+];
+
+const VENDOR_POOL = {
+  G:   [{n:'Quantum Avionics', l:5 },{n:'Helios Components', l:9 },{n:'Vertex Systems', l:14}],
+  PL:  [{n:'Apex Defense Systems', l:7 },{n:'Ironclad Supply Co.', l:11},{n:'Meridian Manufacturing', l:16}],
+  OS:  [{n:'SteelCore Forge Co.', l:4 },{n:'Titan Industrial Group', l:8 },{n:'Forge & Field Industries', l:12}],
+  FT:  [{n:'Skyline Metalworks', l:6 },{n:'Precision Dynamics Inc.', l:10},{n:'NovaTech Systems', l:15}],
+  FP:  [{n:'Vertex Components', l:5 },{n:'Quantum Avionics', l:9 },{n:'Ironclad Supply Co.', l:13}],
+  FC:  [{n:'Titan Industrial Group', l:7 },{n:'SteelCore Forge Co.', l:11},{n:'Helios Components', l:17}],
+  ICS: [{n:'Precision Dynamics Inc.', l:6 },{n:'Forge & Field Industries', l:9 },{n:'Meridian Manufacturing', l:14}],
+  ECS: [{n:'Skyline Metalworks', l:5 },{n:'Apex Defense Systems', l:10},{n:'NovaTech Systems', l:13}],
+  EX:  [{n:'Vertex Systems', l:8 },{n:'Titan Industrial Group', l:12},{n:'Ironclad Supply Co.', l:18}],
+};
+
+const TARGET = 100;
+
+/* ---------- Missile fleet data: stock per part code ---------- */
+let MISSILES = [];
+
+/* ---------- Helpers ---------- */
+function statusOf(stock){
+  if(stock < 50) return 'red';
+  if(stock < 100) return 'yellow';
+  return 'green';
+}
+function statusColor(s){
+  return s==='red' ? 'var(--red)' : s==='yellow' ? 'var(--yellow)' : 'var(--green)';
+}
+function buildableFor(part, stock){
+  return Math.floor(stock / part.req);
+}
+function bottleneckOf(missile){
+  let best = null;
+  for(const p of PARTS_META){
+    const stock = missile.stock[p.code];
+    const units = buildableFor(p, stock);
+    if(best === null || units < best.units){
+      best = { code:p.code, units, stock, req:p.req, label:p.label };
+    }
+  }
+  return best;
+}
+function shortfallFor(part, stock){
+  const remainder = stock % part.req;
+  return remainder > 0 ? (part.req - remainder) : part.req;
+}
+
+let selectedMissileId = null;
+let selectedPartCode = null;
+
+/* ---------- Render fleet grid ---------- */
+function renderFleet(){
+  const grid = document.getElementById('fleet-grid');
+  grid.innerHTML = '';
+  let criticalCount = 0;
+
+  MISSILES.forEach(m=>{
+    const bn = bottleneckOf(m);
+    const st = statusOf(bn.stock);
+    if(st === 'red') criticalCount++;
+
+    const card = document.createElement('div');
+    card.className = 'missile-card' + (m.id===selectedMissileId ? ' active' : '');
+    card.onclick = ()=> openDetail(m.id);
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-name display">${m.name}</div>
+          <div class="card-cat">${m.cat}</div>
+        </div>
+        <div class="status-pill ${st}">${st==='red'?'Critical':st==='yellow'?'Caution':'Healthy'}</div>
+      </div>
+      <div class="card-build">
+        <div class="num" style="color:${statusColor(statusOf(bn.units>=100?100:bn.units*1))}">${bn.units}</div>
+        <div class="unit">buildable this month</div>
+      </div>
+      <div class="card-bottleneck">Limited by <b>${bn.label}</b> (${bn.stock} in stock)</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  document.getElementById('stat-models').textContent = MISSILES.length;
+  document.getElementById('stat-critical').textContent = criticalCount;
+}
+
+/* ---------- Build SVG diagram ---------- */
+function buildSVG(missile){
+  let markers = '';
+  let labels = '';
+
+  PARTS_META.forEach(p=>{
+    const stock = missile.stock[p.code];
+    const st = statusOf(stock);
+    const color = statusColor(st);
+    const isSelected = p.code === selectedPartCode;
+    const pulseClass = st==='red' ? 'pulse' : '';
+    const anchor = p.side==='left' ? 'start' : 'end';
+    const lineEndX = p.side==='left' ? p.lx + 95 : p.lx - 95;
+
+    markers += `
+      <g class="marker-group ${isSelected?'selected':''}" onclick="selectPart('${p.code}')">
+        <line x1="${p.mx}" y1="${p.my}" x2="${lineEndX}" y2="${p.ly}" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.7"/>
+        <circle class="marker-dot ${pulseClass}" cx="${p.mx}" cy="${p.my}" r="9" fill="${color}" opacity="0.95"/>
+        <circle cx="${p.mx}" cy="${p.my}" r="9" fill="none" stroke="${color}" stroke-width="1" opacity="0.4">
+          <animate attributeName="r" values="9;15;9" dur="2.2s" repeatCount="indefinite" begin="${Math.random()}s"/>
+          <animate attributeName="opacity" values="0.5;0;0.5" dur="2.2s" repeatCount="indefinite" begin="${Math.random()}s"/>
+        </circle>
+      </g>
+    `;
+
+    labels += `
+      <g class="marker-group ${isSelected?'selected':''}" onclick="selectPart('${p.code}')">
+        <text class="label-text" x="${p.lx}" y="${p.ly}" fill="${isSelected?'#fff':'var(--text)'}" font-size="13.5" text-anchor="${anchor}">${p.label.toUpperCase()}</text>
+        <text class="label-num" x="${p.lx}" y="${p.ly+17}" fill="${color}" font-size="16" font-weight="700" text-anchor="${anchor}">${stock} units</text>
+      </g>
+    `;
+  });
+
+  return `
+  <svg class="diagram" viewBox="0 0 440 760" width="440" height="760" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#2A3340"/>
+        <stop offset="50%" stop-color="#465463"/>
+        <stop offset="100%" stop-color="#222A34"/>
+      </linearGradient>
+      <linearGradient id="flameGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#FFE08A"/>
+        <stop offset="50%" stop-color="#F2922D"/>
+        <stop offset="100%" stop-color="#D9472B" stop-opacity="0.2"/>
+      </linearGradient>
+    </defs>
+
+    <!-- nose cone -->
+    <path d="M220,18 L268,150 L172,150 Z" fill="url(#bodyGrad)" stroke="var(--border)" stroke-width="1.5"/>
+    <!-- body -->
+    <rect x="170" y="150" width="100" height="400" rx="14" fill="url(#bodyGrad)" stroke="var(--border)" stroke-width="1.5"/>
+    <!-- body seams (decorative) -->
+    <line x1="170" y1="250" x2="270" y2="250" stroke="var(--border)" stroke-width="1"/>
+    <line x1="170" y1="360" x2="270" y2="360" stroke="var(--border)" stroke-width="1"/>
+    <line x1="170" y1="460" x2="270" y2="460" stroke="var(--border)" stroke-width="1"/>
+    <!-- tail mounting collar (bridges body to fin assembly) -->
+    <rect x="164" y="539" width="112" height="16" rx="5" fill="#222A34" stroke="var(--border)" stroke-width="1.5"/>
+
+    <!-- solid skirt closing the gap between the fins and the nozzle -->
+    <polygon points="170,554 270,554 250,624 190,624" fill="url(#bodyGrad)" stroke="var(--border)" stroke-width="1.5"/>
+
+    <!-- internal control vanes (visible through cutaway, just above nozzle) -->
+    <g transform="translate(202,538)" opacity="0.9">
+      <rect x="-15" y="-2.5" width="30" height="5" rx="2" fill="#3A4452" stroke="#5B6B7C" stroke-width="1" stroke-dasharray="2,2"/>
+      <rect x="-2.5" y="-15" width="5" height="30" rx="2" fill="#3A4452" stroke="#5B6B7C" stroke-width="1" stroke-dasharray="2,2" transform="rotate(50)"/>
+      <rect x="-2.5" y="-15" width="5" height="30" rx="2" fill="#3A4452" stroke="#5B6B7C" stroke-width="1" stroke-dasharray="2,2" transform="rotate(-50)"/>
+    </g>
+
+    <!-- fins: fixed root + hinged outer control flap -->
+    <polygon points="170,554 125,598 125,624 170,624" fill="url(#bodyGrad)" stroke="var(--border)" stroke-width="1.5"/>
+    <polygon points="125,598 100,624 125,624" fill="#33414F" stroke="var(--cyan-dim)" stroke-width="1.5"/>
+    <line x1="125" y1="598" x2="125" y2="624" stroke="var(--cyan-dim)" stroke-width="1.2" stroke-dasharray="2,2"/>
+    <circle cx="150" cy="610" r="1.6" fill="#5B6B7C"/>
+    <circle cx="150" cy="618" r="1.6" fill="#5B6B7C"/>
+
+    <polygon points="270,554 315,598 315,624 270,624" fill="url(#bodyGrad)" stroke="var(--border)" stroke-width="1.5"/>
+    <polygon points="315,598 340,624 315,624" fill="#33414F" stroke="var(--cyan-dim)" stroke-width="1.5"/>
+    <line x1="315" y1="598" x2="315" y2="624" stroke="var(--cyan-dim)" stroke-width="1.2" stroke-dasharray="2,2"/>
+    <circle cx="290" cy="610" r="1.6" fill="#5B6B7C"/>
+    <circle cx="290" cy="618" r="1.6" fill="#5B6B7C"/>
+
+    <!-- nozzle taper -->
+    <polygon points="190,624 250,624 235,662 205,662" fill="url(#bodyGrad)" stroke="var(--border)" stroke-width="1.5"/>
+    <!-- flame -->
+    <path d="M210,662 L230,662 L246,712 L220,738 L194,712 Z" fill="url(#flameGrad)" opacity="0.85"/>
+
+    ${markers}
+    ${labels}
+  </svg>
+  `;
+}
+
+/* ---------- Inspector panel ---------- */
+function renderInspector(missile, code){
+  const cont = document.getElementById('inspector-content');
+  if(!code){
+    cont.innerHTML = '<div class="inspector-empty">Select a part on the diagram to see stock level and vendor options.</div>';
+    return;
+  }
+  const part = PARTS_META.find(p=>p.code===code);
+  const stock = missile.stock[code];
+  const st = statusOf(stock);
+  const color = statusColor(st);
+  const units = buildableFor(part, stock);
+  const gaugePct = Math.min(100, (stock/TARGET)*100);
+  const vendors = [...VENDOR_POOL[code]].sort((a,b)=>a.l-b.l);
+  const fastestLead = vendors[0].l;
+
+  cont.innerHTML = `
+    <div class="insp-code">${code}</div>
+    <div class="insp-name display">${part.label}</div>
+
+    <div class="insp-stockrow">
+      <div class="insp-stocknum" style="color:${color}">${stock}</div>
+      <div class="insp-stockunit">units in stock</div>
+    </div>
+    <div class="insp-statustext" style="color:${color}">${st==='red'?'Critical · below 50':st==='yellow'?'Caution · 50–99':'Healthy · 100+'}</div>
+    <div class="gauge"><div class="gauge-fill" style="width:${gaugePct}%; background:${color};"></div></div>
+
+    <div class="insp-meta">
+      <div><div class="v">${part.req}</div><div class="k">Required / unit</div></div>
+      <div><div class="v">${units}</div><div class="k">Buildable from this part</div></div>
+      <div><div class="v">${TARGET}</div><div class="k">Monthly target</div></div>
+    </div>
+
+    <table class="vendor-table">
+      <tr><th>Vendor</th><th>Lead time</th></tr>
+      ${vendors.map(v=>`
+        <tr>
+          <td class="vendor-name">${v.n}</td>
+          <td class="lead-time">${v.l} days ${v.l===fastestLead?'<span class="fastest-badge">FASTEST</span>':''}</td>
+        </tr>
+      `).join('')}
+    </table>
+  `;
+}
+
+/* ---------- Build summary panel ---------- */
+function renderBuildSummary(missile){
+  const bn = bottleneckOf(missile);
+  const part = PARTS_META.find(p=>p.code===bn.code);
+  const short = shortfallFor(part, bn.stock);
+  const st = statusOf(bn.units >= 100 ? 100 : bn.units);
+  const color = statusColor(statusOf(Math.min(bn.units,150)));
+
+  document.getElementById('build-summary').innerHTML = `
+    <div class="bs-num">
+      <div class="v" style="color:${color}">${bn.units}</div>
+      <div class="l">Units buildable this month</div>
+    </div>
+    <div class="bs-mid">
+      Production is currently capped by <b>${part.label}</b>, with ${bn.stock} units in stock
+      against a monthly target of ${TARGET}. Every unit needs ${part.req} of this part.
+      <br><br>
+      <span style="font-size:13.5px; color:var(--text-muted);">Total Forged: <b style="color:var(--cyan); font-size:15px; font-family:'JetBrains Mono',monospace;">${missile.forged_count || 0} units</b></span>
+    </div>
+    <div class="bs-short">
+      <div class="v" style="color:var(--yellow)">${short}</div>
+      <div class="l">More ${part.code} units needed for the next missile</div>
+    </div>
+  `;
+}
+
+/* ---------- Detail view open/close ---------- */
+function openDetail(missileId){
+  selectedMissileId = missileId;
+  selectedPartCode = null;
+  const m = MISSILES.find(x=>x.id===missileId);
+
+  document.getElementById('detail-wrap').style.display = 'block';
+  document.getElementById('detail-title').textContent = m.name;
+  document.getElementById('detail-cat').textContent = m.cat;
+  document.getElementById('detail-sub').textContent = 'Click any labeled part on the diagram below to view stock and vendors.';
+  document.getElementById('svg-mount').innerHTML = buildSVG(m);
+  renderInspector(m, null);
+  renderBuildSummary(m);
+  renderFleet();
+
+  document.getElementById('detail-wrap').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function closeDetail(){
+  selectedMissileId = null;
+  selectedPartCode = null;
+  document.getElementById('detail-wrap').style.display = 'none';
+  renderFleet();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function selectPart(code){
+  selectedPartCode = (selectedPartCode === code) ? null : code;
+  const m = MISSILES.find(x=>x.id===selectedMissileId);
+  document.getElementById('svg-mount').innerHTML = buildSVG(m);
+  renderInspector(m, selectedPartCode);
+}
+
+/* ---------- API Operations ---------- */
+async function loadMissiles(){
+  try {
+    const res = await fetch('/api/missiles');
+    if (!res.ok) throw new Error("API failed");
+    MISSILES = await res.json();
+    renderFleet();
+    if(selectedMissileId){
+      const m = MISSILES.find(x=>x.id===selectedMissileId);
+      if(m){
+        document.getElementById('detail-title').textContent = m.name;
+        document.getElementById('detail-cat').textContent = m.cat;
+        document.getElementById('svg-mount').innerHTML = buildSVG(m);
+        renderInspector(m, selectedPartCode);
+        renderBuildSummary(m);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load missiles from backend:", err);
+  }
+}
+
+async function forgeMissile(){
+  if(!selectedMissileId) return;
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true;
+  btn.textContent = "CREATING...";
+  try {
+    const res = await fetch(`/api/missiles/${selectedMissileId}/forge`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if(!res.ok){
+      alert(data.error || "Failed to forge missile.");
+      return;
+    }
+    
+    // Refresh inventory from server
+    await loadMissiles();
+    
+    // Check if any materials are now depleted/insufficient for another unit
+    if(data.depleted_parts && data.depleted_parts.length > 0){
+      const partLabels = data.depleted_parts.map(p=>p.label).join(', ');
+      alert(`Material ${partLabels} is over so can't make more missiles`);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Error connecting to server.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "CREATE MISSILE";
+  }
+}
+
+// Initial Data Load
+loadMissiles();
+</script>
+</body>
+</html>
